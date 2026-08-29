@@ -1,12 +1,12 @@
 # Simple Deepseek Harness + Antigravity Proxy on ONE ui.
 
-This project is a webview representation the DeepSeek Harness and Antigravity Proxy on the same window.
-No more headache, when start the app, auto install everything needs.
-Auto update without typing command.
+This project is a webview representation the DeepSeek Harness and Antigravity Proxy on the same window.  
+No more headache ! When start the app, auto install everything needs.  
+Auto update without typing command.  
 
-Using Package on this project:
-- [Deepseek Harness](https://github.com/deepseek-ai/deepseek-harness) 
-- [Antigravity Claude Proxy](https://github.com/badrisnarayanan/antigravity-claude-proxy)
+Using Package on this project:  
+- [Deepseek Harness](https://github.com/deepseek-ai/deepseek-harness)  
+- [Antigravity Claude Proxy](https://github.com/badrisnarayanan/antigravity-claude-proxy)  
 
 ---
 
