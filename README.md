@@ -1,6 +1,6 @@
-# Simple Deepseek Harness + Antigravity Proxy on ONE ui.
+# Simple Deepseek Harness + Antigravity / Codex Proxies.
 
-This project is a webview representation the DeepSeek Harness and Antigravity Proxy on the same window.  
+This project is a webview representation the DeepSeek Harness and Antigravity/Codex Proxy on the same window.  
 No more headache ! When start the app, auto install everything needs.  
 Auto update without typing command.  
 
