@@ -7,11 +7,12 @@ Auto update without typing command.
 Using Package on this project:  
 - [Deepseek Harness](https://github.com/deepseek-ai/deepseek-harness)  
 - [Antigravity Claude Proxy](https://github.com/badrisnarayanan/antigravity-claude-proxy)  
+- Codex Claude Proxy  
 
 ---
 
 ## Installation
-> First, make sure port 3080 and 8080 is free.
+> First, make sure port 3080, 8080 and 8081 are free.
 > Then just download the exe file from Release and open on empty folder.
 
 ## Usage Guide

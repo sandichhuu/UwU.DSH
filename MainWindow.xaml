@@ -107,6 +107,7 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
                     <Button x:Name="BtnTabDsh" Content="⚡ Deepseek Harness" Style="{StaticResource TabButtonActiveStyle}" Click="BtnTabDsh_Click"/>
                     <Button x:Name="BtnTabProxy" Content="🚀 Antigravity Proxy" Style="{StaticResource TabButtonStyle}" Click="BtnTabProxy_Click"/>
+                    <Button x:Name="BtnTabCodexProxy" Content="🤖 Codex Proxy" Style="{StaticResource TabButtonStyle}" Click="BtnTabCodexProxy_Click"/>
                 </StackPanel>
 
                 <!-- Actions -->
@@ -125,6 +126,9 @@
 
             <!-- Webview 2: Antigravity Proxy -->
             <wv2:WebView2 x:Name="WebProxy" Visibility="Collapsed"/>
+
+            <!-- Webview 3: Codex Proxy -->
+            <wv2:WebView2 x:Name="WebCodexProxy" Visibility="Collapsed"/>
         </Grid>
 
         <!-- Status Banner (Footer) -->
@@ -136,11 +140,11 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="TxtStatus" Text="Initializing setup &amp; installing antigravity-claude-proxy@latest..." Foreground="#E0E7FF" FontSize="12" FontWeight="Medium"/>
+                    <TextBlock x:Name="TxtStatus" Text="Initializing setup &amp; installing proxy packages..." Foreground="#E0E7FF" FontSize="12" FontWeight="Medium"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="TxtPorts" Text="DSH: 3080 | Proxy: 8080" Foreground="#A5B4FC" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <TextBlock x:Name="TxtPorts" Text="DSH: 3080 | Proxy: 8080 | Codex: 8081" Foreground="#A5B4FC" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
                     <Button x:Name="BtnToggleHeaderFooter" Content="👁️ Show Header" Style="{StaticResource ActionButtonStyle}" Padding="8,3" FontSize="11" Click="BtnToggleHeader_Click" ToolTip="Show/Hide top header bar"/>
                 </StackPanel>
             </Grid>

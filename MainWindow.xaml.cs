@@ -11,10 +11,11 @@ namespace DshAntigravityLauncher
 {
     public partial class MainWindow : Window
     {
-        private Process? _serviceProcess;
+        private readonly System.Collections.Generic.List<Process> _serviceProcesses = new System.Collections.Generic.List<Process>();
         private readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
         private bool _dshLoaded = false;
         private bool _proxyLoaded = false;
+        private bool _codexProxyLoaded = false;
 
         public MainWindow()
         {
@@ -30,8 +31,9 @@ namespace DshAntigravityLauncher
                 // Initialize WebViews concurrently
                 var initDshTask = WebDsh.EnsureCoreWebView2Async();
                 var initProxyTask = WebProxy.EnsureCoreWebView2Async();
+                var initCodexTask = WebCodexProxy.EnsureCoreWebView2Async();
 
-                await Task.WhenAll(initDshTask, initProxyTask);
+                await Task.WhenAll(initDshTask, initProxyTask, initCodexTask);
 
                 // Default active tab is DSH -> set Source for DSH only (prevents double refresh & unnecessary background loading)
                 WebDsh.Source = new Uri("http://127.0.0.1:3080/");
@@ -71,17 +73,18 @@ namespace DshAntigravityLauncher
             // 1. First-run setup: npm config set allow-scripts=better-sqlite3 --location=user
             await EnsureFirstRunConfigAsync();
 
-            // 2. Ensure npm install -g antigravity-claude-proxy@latest
-            UpdateStatus("Step 1/2: Ensuring npm install -g antigravity-claude-proxy@latest...");
+            // 2. Ensure npm install -g antigravity-claude-proxy@latest and npm install -g codex-claude-proxy
+            UpdateStatus("Step 1/2: Ensuring npm install -g antigravity-claude-proxy@latest & codex-claude-proxy...");
             bool installSuccess = await RunNpmInstallAsync();
+            bool installCodexSuccess = await RunNpmInstallCodexAsync();
 
-            if (!installSuccess)
+            if (!installSuccess || !installCodexSuccess)
             {
                 UpdateStatus("Warning: npm install returned an error or warning, proceeding to start services...", isError: false);
             }
 
             // 3. Start background services
-            UpdateStatus("Step 2/2: Starting background services (DSH Web + Antigravity Proxy)...");
+            UpdateStatus("Step 2/2: Starting background services (DSH Web, Antigravity Proxy & Codex Proxy)...");
             StartBackgroundServicesProcess();
 
             // 4. Poll service health to update status
@@ -224,24 +227,79 @@ namespace DshAntigravityLauncher
             });
         }
 
+        private Task<bool> RunNpmInstallCodexAsync()
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = "/c npm install -g codex-claude-proxy",
+                        CreateNoWindow = true,
+                        UseShellExecute = false,
+                        WindowStyle = ProcessWindowStyle.Hidden
+                    };
+
+                    using (var proc = Process.Start(psi))
+                    {
+                        if (proc != null)
+                        {
+                            proc.WaitForExit();
+                            return proc.ExitCode == 0;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"npm install codex error: {ex.Message}");
+                }
+                return false;
+            });
+        }
+
         private void StartBackgroundServicesProcess()
         {
             try
             {
                 KillExistingServicesProcess();
 
-                string command = "antigravity-claude-proxy start & npx -y @deepseek-ai/dsh web --no-open";
-
-                var psi = new ProcessStartInfo
+                // 1. Antigravity Proxy (daemon service)
+                var psiProxy = new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = $"/c \"{command}\"",
+                    Arguments = "/c call antigravity-claude-proxy start",
                     CreateNoWindow = true,
                     UseShellExecute = false,
                     WindowStyle = ProcessWindowStyle.Hidden
                 };
+                var procProxy = Process.Start(psiProxy);
+                if (procProxy != null) _serviceProcesses.Add(procProxy);
 
-                _serviceProcess = Process.Start(psi);
+                // 2. Codex Proxy (foreground service)
+                var psiCodex = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c call codex-claude-proxy start",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+                var procCodex = Process.Start(psiCodex);
+                if (procCodex != null) _serviceProcesses.Add(procCodex);
+
+                // 3. DeepSeek Harness Web (foreground service)
+                var psiDsh = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c call npx -y @deepseek-ai/dsh web --no-open",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+                var procDsh = Process.Start(psiDsh);
+                if (procDsh != null) _serviceProcesses.Add(procDsh);
             }
             catch (Exception ex)
             {
@@ -254,6 +312,7 @@ namespace DshAntigravityLauncher
             int attempts = 0;
             bool dshReady = false;
             bool proxyReady = false;
+            bool codexReady = false;
 
             while (attempts < 30) // Wait up to 60 seconds
             {
@@ -269,28 +328,33 @@ namespace DshAntigravityLauncher
                     proxyReady = await CheckUrlHealthAsync("http://localhost:8080/");
                 }
 
-                if (dshReady && proxyReady)
+                if (!codexReady)
+                {
+                    codexReady = await CheckUrlHealthAsync("http://localhost:8081/");
+                }
+
+                if (dshReady && proxyReady && codexReady)
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        UpdateStatus("✅ Both Deepseek Harness (3080) and Antigravity Proxy (8080) are online & running!", isError: false, isSuccess: true);
+                        UpdateStatus("✅ DSH (3080), Antigravity Proxy (8080) & Codex Proxy (8081) are online & running!", isError: false, isSuccess: true);
                         // Refresh ONLY the currently active/visible tab
                         RefreshActiveTab();
                     });
                     return;
                 }
-                else if (dshReady)
+                else
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        UpdateStatus("⚡ Deepseek Harness (3080) is online. Waiting for Antigravity Proxy (8080)...");
-                    });
-                }
-                else if (proxyReady)
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        UpdateStatus("🚀 Antigravity Proxy (8080) is online. Waiting for Deepseek Harness (3080)...");
+                        var active = new System.Collections.Generic.List<string>();
+                        var waiting = new System.Collections.Generic.List<string>();
+
+                        if (dshReady) active.Add("DSH (3080)"); else waiting.Add("DSH (3080)");
+                        if (proxyReady) active.Add("Proxy (8080)"); else waiting.Add("Proxy (8080)");
+                        if (codexReady) active.Add("Codex (8081)"); else waiting.Add("Codex (8081)");
+
+                        UpdateStatus($"Online: {string.Join(", ", active)}. Waiting for: {string.Join(", ", waiting)}...");
                     });
                 }
 
@@ -312,6 +376,10 @@ namespace DshAntigravityLauncher
             else if (WebProxy.Visibility == Visibility.Visible)
             {
                 WebProxy.Reload();
+            }
+            else if (WebCodexProxy.Visibility == Visibility.Visible)
+            {
+                WebCodexProxy.Reload();
             }
         }
 
@@ -355,9 +423,11 @@ namespace DshAntigravityLauncher
         {
             BtnTabDsh.Style = (Style)FindResource("TabButtonActiveStyle");
             BtnTabProxy.Style = (Style)FindResource("TabButtonStyle");
+            BtnTabCodexProxy.Style = (Style)FindResource("TabButtonStyle");
 
             WebDsh.Visibility = Visibility.Visible;
             WebProxy.Visibility = Visibility.Collapsed;
+            WebCodexProxy.Visibility = Visibility.Collapsed;
 
             if (!_dshLoaded)
             {
@@ -370,15 +440,35 @@ namespace DshAntigravityLauncher
         {
             BtnTabProxy.Style = (Style)FindResource("TabButtonActiveStyle");
             BtnTabDsh.Style = (Style)FindResource("TabButtonStyle");
+            BtnTabCodexProxy.Style = (Style)FindResource("TabButtonStyle");
 
             WebProxy.Visibility = Visibility.Visible;
             WebDsh.Visibility = Visibility.Collapsed;
+            WebCodexProxy.Visibility = Visibility.Collapsed;
 
             // Lazy load Antigravity Proxy tab only when opened
             if (!_proxyLoaded)
             {
                 WebProxy.Source = new Uri("http://localhost:8080/");
                 _proxyLoaded = true;
+            }
+        }
+
+        private void BtnTabCodexProxy_Click(object sender, RoutedEventArgs e)
+        {
+            BtnTabCodexProxy.Style = (Style)FindResource("TabButtonActiveStyle");
+            BtnTabDsh.Style = (Style)FindResource("TabButtonStyle");
+            BtnTabProxy.Style = (Style)FindResource("TabButtonStyle");
+
+            WebCodexProxy.Visibility = Visibility.Visible;
+            WebDsh.Visibility = Visibility.Collapsed;
+            WebProxy.Visibility = Visibility.Collapsed;
+
+            // Lazy load Codex Proxy tab only when opened
+            if (!_codexProxyLoaded)
+            {
+                WebCodexProxy.Source = new Uri("http://localhost:8081/");
+                _codexProxyLoaded = true;
             }
         }
 
@@ -414,22 +504,15 @@ namespace DshAntigravityLauncher
 
         private async Task StopServicesSequenceAsync()
         {
-            UpdateStatus("Stopping services (DSH & Antigravity Proxy)...");
+            UpdateStatus("Stopping services (DSH, Antigravity Proxy & Codex Proxy)...");
 
-            // 1. Kill DSH / piped service process tree
+            // 1. Kill DSH / background service process trees
             KillExistingServicesProcess();
 
             // 2. Execute antigravity-claude-proxy stop
-            bool stopSuccess = await RunProxyStopAsync();
+            await RunProxyStopAsync();
 
-            if (stopSuccess)
-            {
-                UpdateStatus("🛑 Services stopped successfully (DSH terminated & antigravity-claude-proxy stop executed).", isError: true);
-            }
-            else
-            {
-                UpdateStatus("🛑 Services stopped (DSH terminated).", isError: true);
-            }
+            UpdateStatus("🛑 Services stopped (DSH & proxy processes terminated).", isError: true);
         }
 
         private Task<bool> RunProxyStopAsync()
@@ -474,26 +557,35 @@ namespace DshAntigravityLauncher
         {
             try
             {
-                if (_serviceProcess != null && !_serviceProcess.HasExited)
+                foreach (var proc in _serviceProcesses)
                 {
-                    // Kill process tree on Windows
-                    var psi = new ProcessStartInfo
+                    try
                     {
-                        FileName = "taskkill",
-                        Arguments = $"/F /T /PID {_serviceProcess.Id}",
-                        CreateNoWindow = true,
-                        UseShellExecute = false
-                    };
-                    using var killProc = Process.Start(psi);
-                    killProc?.WaitForExit(2000);
+                        if (proc != null && !proc.HasExited)
+                        {
+                            var psi = new ProcessStartInfo
+                            {
+                                FileName = "taskkill",
+                                Arguments = $"/F /T /PID {proc.Id}",
+                                CreateNoWindow = true,
+                                UseShellExecute = false
+                            };
+                            using var killProc = Process.Start(psi);
+                            killProc?.WaitForExit(2000);
 
-                    _serviceProcess.Dispose();
-                    _serviceProcess = null;
+                            proc.Dispose();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error killing process: {ex.Message}");
+                    }
                 }
+                _serviceProcesses.Clear();
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error killing services process: {ex.Message}");
+                Debug.WriteLine($"Error clearing service processes: {ex.Message}");
             }
         }
     }
