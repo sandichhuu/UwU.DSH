@@ -7,7 +7,9 @@ Auto update without typing command.
 Using Package on this project:  
 - [Deepseek Harness](https://github.com/deepseek-ai/deepseek-harness)  
 - [Antigravity Claude Proxy](https://github.com/badrisnarayanan/antigravity-claude-proxy)  
-- Codex Claude Proxy  
+- [Codex Claude Proxy (Git build)](https://github.com/sandichhuu/codex-claude-proxy)
+
+The launcher removes any globally installed `codex-claude-proxy` package and installs the Git build from the repository above on startup.  
 
 ---
 

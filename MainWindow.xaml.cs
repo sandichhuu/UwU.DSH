@@ -73,10 +73,10 @@ namespace DshAntigravityLauncher
             // 1. First-run setup: npm config set allow-scripts=better-sqlite3 --location=user
             await EnsureFirstRunConfigAsync();
 
-            // 2. Ensure npm install -g antigravity-claude-proxy@latest and npm install -g codex-claude-proxy
-            UpdateStatus("Step 1/2: Ensuring npm install -g antigravity-claude-proxy@latest & codex-claude-proxy...");
+            // 2. Install Antigravity Proxy from npm and replace Codex Proxy with the requested Git build.
+            UpdateStatus("Step 1/2: Installing Antigravity Proxy and Codex Proxy from Git...");
             bool installSuccess = await RunNpmInstallAsync();
-            bool installCodexSuccess = await RunNpmInstallCodexAsync();
+            bool installCodexSuccess = await RunNpmInstallCodexFromGitAsync();
 
             if (!installSuccess || !installCodexSuccess)
             {
@@ -227,7 +227,7 @@ namespace DshAntigravityLauncher
             });
         }
 
-        private Task<bool> RunNpmInstallCodexAsync()
+        private Task<bool> RunNpmInstallCodexFromGitAsync()
         {
             return Task.Run(() =>
             {
@@ -236,7 +236,7 @@ namespace DshAntigravityLauncher
                     var psi = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
-                        Arguments = "/c npm install -g codex-claude-proxy",
+                        Arguments = "/c npm uninstall -g codex-claude-proxy && npm install -g git+https://github.com/sandichhuu/codex-claude-proxy.git",
                         CreateNoWindow = true,
                         UseShellExecute = false,
                         WindowStyle = ProcessWindowStyle.Hidden
@@ -253,7 +253,7 @@ namespace DshAntigravityLauncher
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"npm install codex error: {ex.Message}");
+                    Debug.WriteLine($"npm uninstall/install Codex Git package error: {ex.Message}");
                 }
                 return false;
             });
