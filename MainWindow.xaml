@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d"
-        Title="DeepSeek Harness &amp; Antigravity Proxy Launcher" Height="750" Width="1200"
+        Title="DSH Proxies" Icon="icon.png" Height="750" Width="1200"
         Background="#0F172A" WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
@@ -92,26 +92,19 @@
         <Border Grid.Row="0" x:Name="HeaderPanel" Background="#0B0F19" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="12,8,12,0" Visibility="Collapsed">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Title & Brand -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,20,8">
-                    <Border Width="10" Height="10" CornerRadius="5" Background="#10B981" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="DSH &amp; Proxy" Foreground="#F8FAFC" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
-                </StackPanel>
-
                 <!-- Navigation Tabs -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Bottom">
                     <Button x:Name="BtnTabDsh" Content="⚡ Deepseek Harness" Style="{StaticResource TabButtonActiveStyle}" Click="BtnTabDsh_Click"/>
                     <Button x:Name="BtnTabProxy" Content="🚀 Antigravity Proxy" Style="{StaticResource TabButtonStyle}" Click="BtnTabProxy_Click"/>
                     <Button x:Name="BtnTabCodexProxy" Content="🤖 Codex Proxy" Style="{StaticResource TabButtonStyle}" Click="BtnTabCodexProxy_Click"/>
                 </StackPanel>
 
                 <!-- Actions -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,8">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,8">
                     <Button x:Name="BtnReload" Content="🔄 Reload" Style="{StaticResource ActionButtonStyle}" Click="BtnReload_Click" ToolTip="Reload current webview"/>
                     <Button x:Name="BtnStopServices" Content="🛑 Stop Services" Style="{StaticResource ActionButtonStyle}" Click="BtnStopServices_Click" ToolTip="Stop DSH and Antigravity Proxy services"/>
                     <Button x:Name="BtnRestartServices" Content="⚡ Restart Services" Style="{StaticResource ActionButtonStyle}" Click="BtnRestartServices_Click" ToolTip="Restart background processes"/>
