@@ -1,0 +1,67 @@
+<Window x:Class="DshAntigravityLauncher.NodeDownloadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Thông báo - Chưa cài đặt Node.js" Height="340" Width="540"
+        Background="#0F172A" WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize" Topmost="True">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
+            <Border Width="40" Height="40" CornerRadius="20" Background="#7F1D1D" Margin="0,0,14,0">
+                <TextBlock Text="⚠️" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Chưa Cài Đặt Node.js" Foreground="#F8FAFC" FontSize="18" FontWeight="Bold"/>
+                <TextBlock Text="Node.js is required to run this launcher" Foreground="#94A3B8" FontSize="12"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Content -->
+        <StackPanel Grid.Row="1" Margin="0,0,0,16">
+            <TextBlock TextWrapping="Wrap" Foreground="#E2E8F0" FontSize="14" LineHeight="20" Margin="0,0,0,12">
+                Không tìm thấy <Bold Foreground="#38BDF8">Node.js</Bold> trên hệ thống của bạn. 
+                Ứng dụng cần Node.js để vận hành DeepSeek Harness &amp; Antigravity Proxy.
+            </TextBlock>
+
+            <TextBlock TextWrapping="Wrap" Foreground="#94A3B8" FontSize="13" Margin="0,0,0,6">
+                Vui lòng tải và cài đặt Node.js từ trang chủ:
+            </TextBlock>
+
+            <TextBlock FontSize="13" Margin="0,0,0,0">
+                <Hyperlink NavigateUri="https://nodejs.org/" RequestNavigate="Hyperlink_RequestNavigate" Foreground="#38BDF8">
+                    https://nodejs.org/
+                </Hyperlink>
+            </TextBlock>
+        </StackPanel>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="BtnDownload" Content="📥 Tải Node.js &amp; Đóng App" 
+                    Background="#2563EB" Foreground="#FFFFFF" FontSize="13" FontWeight="SemiBold"
+                    Padding="16,8" Margin="0,0,10,0" Cursor="Hand" BorderThickness="0"
+                    Click="BtnDownload_Click">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="6"/>
+                    </Style>
+                </Button.Resources>
+            </Button>
+            <Button x:Name="BtnClose" Content="❌ Đóng App" 
+                    Background="#334155" Foreground="#E2E8F0" FontSize="13"
+                    Padding="14,8" Cursor="Hand" BorderThickness="0"
+                    Click="BtnClose_Click">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="6"/>
+                    </Style>
+                </Button.Resources>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>
