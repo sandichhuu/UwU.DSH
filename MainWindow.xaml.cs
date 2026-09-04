@@ -13,6 +13,7 @@ namespace DshAntigravityLauncher
     {
         private readonly System.Collections.Generic.List<Process> _serviceProcesses = new System.Collections.Generic.List<Process>();
         private readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+        private string? _dshTokenUrl = null;
         private bool _dshLoaded = false;
         private bool _proxyLoaded = false;
         private bool _codexProxyLoaded = false;
@@ -296,10 +297,45 @@ namespace DshAntigravityLauncher
                     Arguments = "/c call npx -y @deepseek-ai/dsh web --no-open",
                     CreateNoWindow = true,
                     UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
                     WindowStyle = ProcessWindowStyle.Hidden
                 };
-                var procDsh = Process.Start(psiDsh);
-                if (procDsh != null) _serviceProcesses.Add(procDsh);
+                var procDsh = new Process { StartInfo = psiDsh };
+                procDsh.OutputDataReceived += (s, e) =>
+                {
+                    if (!string.IsNullOrEmpty(e.Data))
+                    {
+                        Debug.WriteLine($"[DSH StdOut] {e.Data}");
+                        // Example line: dsh web: http://127.0.0.1:3080/?token=65RRWFzZLJwFdTc90TJozzYOndn_WMtqUdfvJWbqvDg
+                        int tokenIdx = e.Data.IndexOf("http://127.0.0.1:3080/?token=", StringComparison.OrdinalIgnoreCase);
+                        if (tokenIdx >= 0)
+                        {
+                            string rawUrl = e.Data.Substring(tokenIdx).Trim();
+                            _dshTokenUrl = rawUrl;
+                            Dispatcher.Invoke(() =>
+                            {
+                                if (WebDsh != null)
+                                {
+                                    WebDsh.Source = new Uri(_dshTokenUrl);
+                                    _dshLoaded = true;
+                                }
+                            });
+                        }
+                    }
+                };
+                procDsh.ErrorDataReceived += (s, e) =>
+                {
+                    if (!string.IsNullOrEmpty(e.Data))
+                    {
+                        Debug.WriteLine($"[DSH StdErr] {e.Data}");
+                    }
+                };
+
+                procDsh.Start();
+                procDsh.BeginOutputReadLine();
+                procDsh.BeginErrorReadLine();
+                _serviceProcesses.Add(procDsh);
             }
             catch (Exception ex)
             {
@@ -371,7 +407,14 @@ namespace DshAntigravityLauncher
         {
             if (WebDsh.Visibility == Visibility.Visible)
             {
-                WebDsh.Reload();
+                if (!string.IsNullOrEmpty(_dshTokenUrl))
+                {
+                    WebDsh.Source = new Uri(_dshTokenUrl);
+                }
+                else
+                {
+                    WebDsh.Reload();
+                }
             }
             else if (WebProxy.Visibility == Visibility.Visible)
             {
@@ -431,7 +474,8 @@ namespace DshAntigravityLauncher
 
             if (!_dshLoaded)
             {
-                WebDsh.Source = new Uri("http://127.0.0.1:3080/");
+                string targetUrl = !string.IsNullOrEmpty(_dshTokenUrl) ? _dshTokenUrl : "http://127.0.0.1:3080/";
+                WebDsh.Source = new Uri(targetUrl);
                 _dshLoaded = true;
             }
         }
