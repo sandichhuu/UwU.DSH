@@ -108,6 +108,8 @@
                     <Button x:Name="BtnReload" Content="🔄 Reload" Style="{StaticResource ActionButtonStyle}" Click="BtnReload_Click" ToolTip="Reload current webview"/>
                     <Button x:Name="BtnStopServices" Content="🛑 Stop Services" Style="{StaticResource ActionButtonStyle}" Click="BtnStopServices_Click" ToolTip="Stop DSH and Antigravity Proxy services"/>
                     <Button x:Name="BtnRestartServices" Content="⚡ Restart Services" Style="{StaticResource ActionButtonStyle}" Click="BtnRestartServices_Click" ToolTip="Restart background processes"/>
+                    <Button x:Name="BtnOpenSettings" Content="⚙️ Settings" Style="{StaticResource ActionButtonStyle}" Click="BtnOpenSettings_Click" ToolTip="Open settings.ini in editor"/>
+                    <Button x:Name="BtnOpenLog" Content="📋 Log" Style="{StaticResource ActionButtonStyle}" Click="BtnOpenLog_Click" ToolTip="Open lastsession.log"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -138,6 +140,8 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock x:Name="TxtPorts" Text="DSH: 3080 | Proxy: 8080 | Codex: 8081" Foreground="#A5B4FC" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <Button x:Name="BtnFooterLog" Content="📋 Log" Style="{StaticResource ActionButtonStyle}" Padding="8,3" FontSize="11" Click="BtnOpenLog_Click" ToolTip="Open lastsession.log" Margin="2,0"/>
+                    <Button x:Name="BtnFooterSettings" Content="⚙️ Settings" Style="{StaticResource ActionButtonStyle}" Padding="8,3" FontSize="11" Click="BtnOpenSettings_Click" ToolTip="Open settings.ini in editor" Margin="2,0"/>
                     <Button x:Name="BtnToggleHeaderFooter" Content="👁️ Show Header" Style="{StaticResource ActionButtonStyle}" Padding="8,3" FontSize="11" Click="BtnToggleHeader_Click" ToolTip="Show/Hide top header bar"/>
                 </StackPanel>
             </Grid>

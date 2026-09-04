@@ -29,6 +29,10 @@ namespace DshAntigravityLauncher
         {
             try
             {
+                // Initialize session log
+                AppLogger.Initialize();
+                AppLogger.Log("DSH Proxies Launcher starting up...");
+
                 // Initialize WebViews concurrently
                 var initDshTask = WebDsh.EnsureCoreWebView2Async();
                 var initProxyTask = WebProxy.EnsureCoreWebView2Async();
@@ -45,6 +49,7 @@ namespace DshAntigravityLauncher
             }
             catch (Exception ex)
             {
+                AppLogger.Log($"[ERROR] Initialization error: {ex.Message}");
                 UpdateStatus($"Initialization error: {ex.Message}", isError: true);
             }
         }
@@ -58,7 +63,8 @@ namespace DshAntigravityLauncher
             if (!isNodeInstalled)
             {
                 UpdateStatus("❌ Node.js is not installed on this system!", isError: true);
-                
+                AppLogger.Log("[ERROR] Node.js is not installed on this system! Showing download dialog...");
+
                 // Show Node.js missing download window
                 var downloadWindow = new NodeDownloadWindow
                 {
@@ -71,22 +77,37 @@ namespace DshAntigravityLauncher
                 return;
             }
 
-            // 1. First-run setup: npm config set allow-scripts=better-sqlite3 --location=user
-            await EnsureFirstRunConfigAsync();
+            // 1. Load configuration from settings.ini (created automatically on first launch)
+            AppLogger.Log("[CONFIG] Loading startup and service configuration from settings.ini...");
+            var settings = SettingsManager.LoadSettings();
 
-            // 2. Install Antigravity Proxy from npm and replace Codex Proxy with the requested Git build.
-            UpdateStatus("Step 1/2: Installing Antigravity Proxy and Codex Proxy from Git...");
-            bool installSuccess = await RunNpmInstallAsync();
-            bool installCodexSuccess = await RunNpmInstallCodexFromGitAsync();
-
-            if (!installSuccess || !installCodexSuccess)
+            // 2. Run startup commands sequentially from settings.ini
+            int totalStartup = settings.StartupCommands.Count;
+            if (totalStartup > 0)
             {
-                UpdateStatus("Warning: npm install returned an error or warning, proceeding to start services...", isError: false);
+                AppLogger.Log($"[STARTUP] Executing {totalStartup} startup command(s)...");
+                for (int i = 0; i < totalStartup; i++)
+                {
+                    string cmd = settings.StartupCommands[i];
+                    string shortDisplay = cmd.Length > 60 ? cmd.Substring(0, 57) + "..." : cmd;
+                    UpdateStatus($"Startup [{i + 1}/{totalStartup}]: {shortDisplay}");
+
+                    bool success = await RunStartupCommandAsync(cmd, i + 1, totalStartup);
+                    if (!success)
+                    {
+                        UpdateStatus($"Warning: Command [{i + 1}] returned non-zero code, continuing...", isError: false);
+                    }
+                }
+                AppLogger.Log("[STARTUP] Completed all startup commands.");
+            }
+            else
+            {
+                AppLogger.Log("[STARTUP] No startup commands found in settings.ini. Continuing directly to services.");
             }
 
-            // 3. Start background services
-            UpdateStatus("Step 2/2: Starting background services (DSH Web, Antigravity Proxy & Codex Proxy)...");
-            StartBackgroundServicesProcess();
+            // 3. Start background services from settings.ini
+            UpdateStatus("Starting background services from settings.ini...");
+            StartBackgroundServicesProcess(settings.ServiceCommands);
 
             // 4. Poll service health to update status
             _ = MonitorServicesHealthAsync();
@@ -98,6 +119,7 @@ namespace DshAntigravityLauncher
             {
                 try
                 {
+                    AppLogger.Log("[NODE CHECK] Checking Node.js installation (cmd.exe /c node -v)...");
                     var psi = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
@@ -114,231 +136,168 @@ namespace DshAntigravityLauncher
                         if (proc != null)
                         {
                             string output = proc.StandardOutput.ReadToEnd();
+                            string err = proc.StandardError.ReadToEnd();
                             proc.WaitForExit(3000);
-                            return proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) && output.Trim().StartsWith("v");
+
+                            if (!string.IsNullOrWhiteSpace(output))
+                            {
+                                AppLogger.Log($"[NODE CHECK STDOUT] {output.Trim()}");
+                            }
+                            if (!string.IsNullOrWhiteSpace(err))
+                            {
+                                AppLogger.Log($"[NODE CHECK STDERR] {err.Trim()}");
+                            }
+
+                            bool isOk = proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(output) && output.Trim().StartsWith("v");
+                            AppLogger.Log($"[NODE CHECK] Result: {(isOk ? $"Installed ({output.Trim()})" : "Not Installed / Failed")}");
+                            return isOk;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Node check error: {ex.Message}");
+                    AppLogger.Log($"[NODE CHECK] Error: {ex.Message}");
                 }
                 return false;
             });
         }
 
-        private string GetFirstRunFlagPath()
-        {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string dir = Path.Combine(appData, "DshAntigravityLauncher");
-            if (!Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
-            return Path.Combine(dir, "allow_scripts_configured.flag");
-        }
-
-        private async Task EnsureFirstRunConfigAsync()
-        {
-            string flagPath = GetFirstRunFlagPath();
-            if (!File.Exists(flagPath))
-            {
-                UpdateStatus("First launch detected: Executing npm config set allow-scripts=better-sqlite3 --location=user...");
-                bool success = await RunNpmConfigSetAllowScriptsAsync();
-                if (success)
-                {
-                    try
-                    {
-                        File.WriteAllText(flagPath, $"Configured allow-scripts=better-sqlite3 on {DateTime.Now}");
-                        Debug.WriteLine("First-run flag saved successfully.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Failed to write first-run flag: {ex.Message}");
-                    }
-                }
-                else
-                {
-                    UpdateStatus("Warning: First-run npm config set returned exit code != 0, continuing...", isError: false);
-                }
-            }
-        }
-
-        private Task<bool> RunNpmConfigSetAllowScriptsAsync()
+        private Task<bool> RunStartupCommandAsync(string command, int stepIndex, int totalSteps)
         {
             return Task.Run(() =>
             {
                 try
                 {
+                    AppLogger.Log($"--------------------------------------------------------------------------------");
+                    AppLogger.Log($"[STARTUP STEP {stepIndex}/{totalSteps}] Executing: cmd.exe /c {command}");
+
                     var psi = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
-                        Arguments = "/c npm config set allow-scripts=better-sqlite3 --location=user",
+                        Arguments = $"/c {command}",
                         CreateNoWindow = true,
                         UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
                         WindowStyle = ProcessWindowStyle.Hidden
                     };
 
-                    using (var proc = Process.Start(psi))
+                    using var proc = new Process { StartInfo = psi };
+                    proc.OutputDataReceived += (s, e) =>
                     {
-                        if (proc != null)
+                        if (!string.IsNullOrEmpty(e.Data))
                         {
-                            proc.WaitForExit();
-                            return proc.ExitCode == 0;
+                            AppLogger.Log($"[STEP {stepIndex} STDOUT] {e.Data}");
                         }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"npm config set error: {ex.Message}");
-                }
-                return false;
-            });
-        }
-
-        private Task<bool> RunNpmInstallAsync()
-        {
-            return Task.Run(() =>
-            {
-                try
-                {
-                    var psi = new ProcessStartInfo
+                    };
+                    proc.ErrorDataReceived += (s, e) =>
                     {
-                        FileName = "cmd.exe",
-                        Arguments = "/c npm install -g antigravity-claude-proxy@latest",
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        WindowStyle = ProcessWindowStyle.Hidden
+                        if (!string.IsNullOrEmpty(e.Data))
+                        {
+                            AppLogger.Log($"[STEP {stepIndex} STDERR] {e.Data}");
+                        }
                     };
 
-                    using (var proc = Process.Start(psi))
-                    {
-                        if (proc != null)
-                        {
-                            proc.WaitForExit();
-                            return proc.ExitCode == 0;
-                        }
-                    }
+                    proc.Start();
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    proc.WaitForExit();
+
+                    AppLogger.Log($"[STARTUP STEP {stepIndex}/{totalSteps}] Finished with exit code: {proc.ExitCode}");
+                    return proc.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"npm install error: {ex.Message}");
+                    AppLogger.Log($"[STARTUP STEP {stepIndex}/{totalSteps}] Exception running command: {ex.Message}");
+                    return false;
                 }
-                return false;
             });
         }
 
-        private Task<bool> RunNpmInstallCodexFromGitAsync()
-        {
-            return Task.Run(() =>
-            {
-                try
-                {
-                    var psi = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = "/c npm uninstall -g codex-claude-proxy && npm install -g git+https://github.com/sandichhuu/codex-claude-proxy.git",
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        WindowStyle = ProcessWindowStyle.Hidden
-                    };
-
-                    using (var proc = Process.Start(psi))
-                    {
-                        if (proc != null)
-                        {
-                            proc.WaitForExit();
-                            return proc.ExitCode == 0;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"npm uninstall/install Codex Git package error: {ex.Message}");
-                }
-                return false;
-            });
-        }
-
-        private void StartBackgroundServicesProcess()
+        private void StartBackgroundServicesProcess(System.Collections.Generic.List<string> serviceCommands)
         {
             try
             {
                 KillExistingServicesProcess();
 
-                // 1. Antigravity Proxy (daemon service)
-                var psiProxy = new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments = "/c call antigravity-claude-proxy start",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                };
-                var procProxy = Process.Start(psiProxy);
-                if (procProxy != null) _serviceProcesses.Add(procProxy);
+                AppLogger.Log($"--------------------------------------------------------------------------------");
+                AppLogger.Log($"[SERVICES] Starting {serviceCommands.Count} background service(s)...");
 
-                // 2. Codex Proxy (foreground service)
-                var psiCodex = new ProcessStartInfo
+                int idx = 0;
+                foreach (string cmd in serviceCommands)
                 {
-                    FileName = "cmd.exe",
-                    Arguments = "/c call codex-claude-proxy start",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                };
-                var procCodex = Process.Start(psiCodex);
-                if (procCodex != null) _serviceProcesses.Add(procCodex);
+                    idx++;
+                    int serviceNum = idx;
+                    string commandToRun = cmd;
 
-                // 3. DeepSeek Harness Web (foreground service)
-                var psiDsh = new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments = "/c call npx -y @deepseek-ai/dsh web --no-open",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                };
-                var procDsh = new Process { StartInfo = psiDsh };
-                procDsh.OutputDataReceived += (s, e) =>
-                {
-                    if (!string.IsNullOrEmpty(e.Data))
+                    AppLogger.Log($"[SERVICE #{serviceNum}] Launching: cmd.exe /c {commandToRun}");
+
+                    var psi = new ProcessStartInfo
                     {
-                        Debug.WriteLine($"[DSH StdOut] {e.Data}");
-                        // Example line: dsh web: http://127.0.0.1:3080/?token=65RRWFzZLJwFdTc90TJozzYOndn_WMtqUdfvJWbqvDg
-                        int tokenIdx = e.Data.IndexOf("http://127.0.0.1:3080/?token=", StringComparison.OrdinalIgnoreCase);
-                        if (tokenIdx >= 0)
+                        FileName = "cmd.exe",
+                        Arguments = $"/c {commandToRun}",
+                        CreateNoWindow = true,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        WindowStyle = ProcessWindowStyle.Hidden
+                    };
+
+                    var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
+                    proc.OutputDataReceived += (s, e) =>
+                    {
+                        if (!string.IsNullOrEmpty(e.Data))
                         {
-                            string rawUrl = e.Data.Substring(tokenIdx).Trim();
-                            _dshTokenUrl = rawUrl;
-                            Dispatcher.Invoke(() =>
-                            {
-                                if (WebDsh != null)
-                                {
-                                    WebDsh.Source = new Uri(_dshTokenUrl);
-                                    _dshLoaded = true;
-                                }
-                            });
-                        }
-                    }
-                };
-                procDsh.ErrorDataReceived += (s, e) =>
-                {
-                    if (!string.IsNullOrEmpty(e.Data))
-                    {
-                        Debug.WriteLine($"[DSH StdErr] {e.Data}");
-                    }
-                };
+                            AppLogger.Log($"[SERVICE #{serviceNum} STDOUT] {e.Data}");
 
-                procDsh.Start();
-                procDsh.BeginOutputReadLine();
-                procDsh.BeginErrorReadLine();
-                _serviceProcesses.Add(procDsh);
+                            // Detect DSH web token URL if present
+                            int tokenIdx = e.Data.IndexOf("http://127.0.0.1:3080/?token=", StringComparison.OrdinalIgnoreCase);
+                            if (tokenIdx < 0)
+                            {
+                                tokenIdx = e.Data.IndexOf("http://localhost:3080/?token=", StringComparison.OrdinalIgnoreCase);
+                            }
+
+                            if (tokenIdx >= 0)
+                            {
+                                string rawUrl = e.Data.Substring(tokenIdx).Trim();
+                                _dshTokenUrl = rawUrl;
+                                AppLogger.Log($"[DSH] Detected token URL: {_dshTokenUrl}");
+                                Dispatcher.Invoke(() =>
+                                {
+                                    if (WebDsh != null)
+                                    {
+                                        WebDsh.Source = new Uri(_dshTokenUrl);
+                                        _dshLoaded = true;
+                                    }
+                                });
+                            }
+                        }
+                    };
+
+                    proc.ErrorDataReceived += (s, e) =>
+                    {
+                        if (!string.IsNullOrEmpty(e.Data))
+                        {
+                            AppLogger.Log($"[SERVICE #{serviceNum} STDERR] {e.Data}");
+                        }
+                    };
+
+                    proc.Exited += (s, e) =>
+                    {
+                        AppLogger.Log($"[SERVICE #{serviceNum}] Process exited (PID {proc.Id}, ExitCode: {proc.ExitCode})");
+                    };
+
+                    proc.Start();
+                    proc.BeginOutputReadLine();
+                    proc.BeginErrorReadLine();
+                    _serviceProcesses.Add(proc);
+
+                    AppLogger.Log($"[SERVICE #{serviceNum}] Started with PID {proc.Id}");
+                }
             }
             catch (Exception ex)
             {
+                AppLogger.Log($"[SERVICES] Failed to launch services: {ex.Message}");
                 UpdateStatus($"Failed to launch services: {ex.Message}", isError: true);
             }
         }
@@ -441,6 +400,8 @@ namespace DshAntigravityLauncher
 
         private void UpdateStatus(string message, bool isError = false, bool isSuccess = false)
         {
+            AppLogger.Log($"[STATUS] {message}");
+
             Dispatcher.Invoke(() =>
             {
                 TxtStatus.Text = message;
@@ -537,12 +498,14 @@ namespace DshAntigravityLauncher
 
         private async void BtnRestartServices_Click(object sender, RoutedEventArgs e)
         {
+            AppLogger.Log("[USER] Clicked Restart Services button.");
             UpdateStatus("Restarting background services...");
             await StartServicesSequenceAsync();
         }
 
         private async void BtnStopServices_Click(object sender, RoutedEventArgs e)
         {
+            AppLogger.Log("[USER] Clicked Stop Services button.");
             await StopServicesSequenceAsync();
         }
 
@@ -565,27 +528,47 @@ namespace DshAntigravityLauncher
             {
                 try
                 {
+                    AppLogger.Log("[STOP] Executing: cmd.exe /c antigravity-claude-proxy stop");
                     var psi = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
                         Arguments = "/c antigravity-claude-proxy stop",
                         CreateNoWindow = true,
                         UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
                         WindowStyle = ProcessWindowStyle.Hidden
                     };
 
-                    using (var proc = Process.Start(psi))
+                    using (var proc = new Process { StartInfo = psi })
                     {
-                        if (proc != null)
+                        proc.OutputDataReceived += (s, e) =>
                         {
-                            proc.WaitForExit(3000);
-                            return proc.ExitCode == 0;
-                        }
+                            if (!string.IsNullOrEmpty(e.Data))
+                            {
+                                AppLogger.Log($"[PROXY STOP STDOUT] {e.Data}");
+                            }
+                        };
+                        proc.ErrorDataReceived += (s, e) =>
+                        {
+                            if (!string.IsNullOrEmpty(e.Data))
+                            {
+                                AppLogger.Log($"[PROXY STOP STDERR] {e.Data}");
+                            }
+                        };
+
+                        proc.Start();
+                        proc.BeginOutputReadLine();
+                        proc.BeginErrorReadLine();
+                        proc.WaitForExit(4000);
+
+                        AppLogger.Log($"[STOP] antigravity-claude-proxy stop completed with exit code: {proc.ExitCode}");
+                        return proc.ExitCode == 0;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"antigravity-claude-proxy stop error: {ex.Message}");
+                    AppLogger.Log($"[STOP] antigravity-claude-proxy stop error: {ex.Message}");
                 }
                 return false;
             });
@@ -593,20 +576,28 @@ namespace DshAntigravityLauncher
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
+            AppLogger.Log("[APPLICATION] MainWindow is closing. Terminating services...");
             KillExistingServicesProcess();
             _ = RunProxyStopAsync();
+            AppLogger.Log("[APPLICATION] Session terminated.");
         }
 
         private void KillExistingServicesProcess()
         {
             try
             {
+                if (_serviceProcesses.Count > 0)
+                {
+                    AppLogger.Log($"[SHUTDOWN] Terminating {_serviceProcesses.Count} active service process(es)...");
+                }
+
                 foreach (var proc in _serviceProcesses)
                 {
                     try
                     {
                         if (proc != null && !proc.HasExited)
                         {
+                            AppLogger.Log($"[SHUTDOWN] Killing process tree for PID {proc.Id}...");
                             var psi = new ProcessStartInfo
                             {
                                 FileName = "taskkill",
@@ -622,15 +613,27 @@ namespace DshAntigravityLauncher
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"Error killing process: {ex.Message}");
+                        AppLogger.Log($"[SHUTDOWN] Error killing process: {ex.Message}");
                     }
                 }
                 _serviceProcesses.Clear();
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error clearing service processes: {ex.Message}");
+                AppLogger.Log($"[SHUTDOWN] Error clearing service processes: {ex.Message}");
             }
+        }
+
+        private void BtnOpenSettings_Click(object sender, RoutedEventArgs e)
+        {
+            AppLogger.Log("[USER] Clicked Open Settings button.");
+            SettingsManager.OpenSettingsFile();
+        }
+
+        private void BtnOpenLog_Click(object sender, RoutedEventArgs e)
+        {
+            AppLogger.Log("[USER] Clicked Open Log button.");
+            AppLogger.OpenLogFile();
         }
     }
 }
