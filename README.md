@@ -1,35 +1,21 @@
-# Simple Deepseek Harness + Antigravity / Codex Proxies.
+# Deepseek Harness + UwU-X-Proxy
 
-This project is a webview representation the DeepSeek Harness and Antigravity/Codex Proxy on the same window.  
-No more headache ! When start the app, auto install everything needs.  
-Auto update without typing command.  
-
-Using Package on this project:  
-- [Deepseek Harness](https://github.com/deepseek-ai/deepseek-harness)  
-- [Antigravity Claude Proxy](https://github.com/badrisnarayanan/antigravity-claude-proxy)  
-- [Codex Claude Proxy (Git build)](https://github.com/sandichhuu/codex-claude-proxy)
-
-The launcher removes any globally installed `codex-claude-proxy` package and installs the Git build from the repository above on startup.  
+The wrapper for Deepseek Harness.  
+The fastest way to working on Deepseek Harness without complex setup.  
+Support Codex, Antigravity, API Endpoints.
 
 ---
 
-## Installation
-> First, make sure port 3080, 8080 and 8081 are free.
-> Then just download the exe file from Release and open on empty folder.
+### References
+[Deepseek Harness](https://github.com/deepseek-ai/deepseek-harness)  
+[UwU-X-Proxy](https://github.com/sandichhuu/uwu-x-proxy)  
 
-## Usage Guide
+### Usage
+You don't need to config models / api endpoints on DSH.  
+Just enter Integrate tab then click Install.   
+All models will be auto added into DSH.  
+<img width="1174" height="971" alt="image" src="https://github.com/user-attachments/assets/716998f8-250f-4519-b95b-a0f1102d9902" />
 
-### Connect Google Account
-<img width="1919" height="1019" alt="image" src="https://github.com/user-attachments/assets/93b8e4b8-ae1e-4a06-a1e7-602acd7dc994" />
-
-### Fetch model list  
-<img width="1919" height="1022" alt="image" src="https://github.com/user-attachments/assets/0f2bb7b3-276b-4b27-a2b5-ae1b1e8e6d0c" />  
-
-### Turn to Anthropic protocol  
-<img width="1919" height="1023" alt="image" src="https://github.com/user-attachments/assets/1126fca8-ba14-45c5-a2e0-563d547e234c" />  
-
-### Select model and enjoy  
-<img width="1919" height="1021" alt="image" src="https://github.com/user-attachments/assets/afd41adf-c132-47fc-a833-3d95c3e9b94f" />
-
----
-
+### Screenshots
+<img width="1919" height="1033" alt="image" src="https://github.com/user-attachments/assets/f8d62f12-2b6d-4604-8f90-33d43051fc3d" />
+<img width="1919" height="1033" alt="image" src="https://github.com/user-attachments/assets/1fd1de80-304f-433e-9992-bb645f494fa2" />
