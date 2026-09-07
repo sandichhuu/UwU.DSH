@@ -15,8 +15,7 @@ namespace DshAntigravityLauncher
         private readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
         private string? _dshTokenUrl = null;
         private bool _dshLoaded = false;
-        private bool _proxyLoaded = false;
-        private bool _codexProxyLoaded = false;
+        private bool _xProxyLoaded = false;
 
         public MainWindow()
         {
@@ -35,10 +34,9 @@ namespace DshAntigravityLauncher
 
                 // Initialize WebViews concurrently
                 var initDshTask = WebDsh.EnsureCoreWebView2Async();
-                var initProxyTask = WebProxy.EnsureCoreWebView2Async();
-                var initCodexTask = WebCodexProxy.EnsureCoreWebView2Async();
+                var initXProxyTask = WebXProxy.EnsureCoreWebView2Async();
 
-                await Task.WhenAll(initDshTask, initProxyTask, initCodexTask);
+                await Task.WhenAll(initDshTask, initXProxyTask);
 
                 // Default active tab is DSH -> set Source for DSH only (prevents double refresh & unnecessary background loading)
                 WebDsh.Source = new Uri("http://127.0.0.1:3080/");
@@ -110,7 +108,7 @@ namespace DshAntigravityLauncher
             StartBackgroundServicesProcess(settings.ServiceCommands);
 
             // 4. Poll service health to update status
-            _ = MonitorServicesHealthAsync();
+            _ = MonitorServicesHealthAsync(settings.ServiceCommands);
         }
 
         private Task<bool> IsNodeInstalledAsync()
@@ -168,13 +166,14 @@ namespace DshAntigravityLauncher
             {
                 try
                 {
+                    string commandToRun = SettingsManager.SanitizeCommand(command);
                     AppLogger.Log($"--------------------------------------------------------------------------------");
-                    AppLogger.Log($"[STARTUP STEP {stepIndex}/{totalSteps}] Executing: cmd.exe /c {command}");
+                    AppLogger.Log($"[STARTUP STEP {stepIndex}/{totalSteps}] Executing: cmd.exe /c {commandToRun}");
 
                     var psi = new ProcessStartInfo
                     {
                         FileName = "cmd.exe",
-                        Arguments = $"/c {command}",
+                        Arguments = $"/c {commandToRun}",
                         CreateNoWindow = true,
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
@@ -228,7 +227,7 @@ namespace DshAntigravityLauncher
                 {
                     idx++;
                     int serviceNum = idx;
-                    string commandToRun = cmd;
+                    string commandToRun = SettingsManager.SanitizeCommand(cmd);
 
                     AppLogger.Log($"[SERVICE #{serviceNum}] Launching: cmd.exe /c {commandToRun}");
 
@@ -302,37 +301,47 @@ namespace DshAntigravityLauncher
             }
         }
 
-        private async Task MonitorServicesHealthAsync()
+        private async Task MonitorServicesHealthAsync(System.Collections.Generic.List<string>? serviceCommands = null)
         {
             int attempts = 0;
-            bool dshReady = false;
-            bool proxyReady = false;
-            bool codexReady = false;
+            var commands = serviceCommands ?? new System.Collections.Generic.List<string>();
+            int totalServices = commands.Count;
+
+            // Determine which known endpoints to check based on configured commands
+            bool expectDsh = commands.Count == 0 || System.Linq.Enumerable.Any(commands, c => c.Contains("dsh", StringComparison.OrdinalIgnoreCase) || c.Contains("3080"));
+            bool expectXProxy = commands.Count == 0 || System.Linq.Enumerable.Any(commands, c => c.Contains("uwu-x-proxy", StringComparison.OrdinalIgnoreCase) || c.Contains("3081"));
+
+            bool dshReady = !expectDsh;
+            bool xProxyReady = !expectXProxy;
 
             while (attempts < 30) // Wait up to 60 seconds
             {
                 attempts++;
 
-                if (!dshReady)
+                if (expectDsh && !dshReady)
                 {
                     dshReady = await CheckUrlHealthAsync("http://127.0.0.1:3080/");
                 }
 
-                if (!proxyReady)
+                if (expectXProxy && !xProxyReady)
                 {
-                    proxyReady = await CheckUrlHealthAsync("http://localhost:8080/");
+                    xProxyReady = await CheckUrlHealthAsync("http://localhost:3081/");
                 }
 
-                if (!codexReady)
-                {
-                    codexReady = await CheckUrlHealthAsync("http://localhost:8081/");
-                }
-
-                if (dshReady && proxyReady && codexReady)
+                if (dshReady && xProxyReady)
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        UpdateStatus("✅ DSH (3080), Antigravity Proxy (8080) & Codex Proxy (8081) are online & running!", isError: false, isSuccess: true);
+                        string statusMsg;
+                        if (totalServices > 2)
+                        {
+                            statusMsg = $"✅ All {totalServices} background services are online & running (DSH & X-Proxy active)!";
+                        }
+                        else
+                        {
+                            statusMsg = "✅ DSH (3080) & X-Proxy (3081) are online & running!";
+                        }
+                        UpdateStatus(statusMsg, isError: false, isSuccess: true);
                         // Refresh ONLY the currently active/visible tab
                         RefreshActiveTab();
                     });
@@ -345,11 +354,12 @@ namespace DshAntigravityLauncher
                         var active = new System.Collections.Generic.List<string>();
                         var waiting = new System.Collections.Generic.List<string>();
 
-                        if (dshReady) active.Add("DSH (3080)"); else waiting.Add("DSH (3080)");
-                        if (proxyReady) active.Add("Proxy (8080)"); else waiting.Add("Proxy (8080)");
-                        if (codexReady) active.Add("Codex (8081)"); else waiting.Add("Codex (8081)");
+                        if (expectDsh) { if (dshReady) active.Add("DSH (3080)"); else waiting.Add("DSH (3080)"); }
+                        if (expectXProxy) { if (xProxyReady) active.Add("X-Proxy (3081)"); else waiting.Add("X-Proxy (3081)"); }
 
-                        UpdateStatus($"Online: {string.Join(", ", active)}. Waiting for: {string.Join(", ", waiting)}...");
+                        string onlinePart = active.Count > 0 ? $"Online: {string.Join(", ", active)}. " : "";
+                        string waitingPart = waiting.Count > 0 ? $"Waiting for: {string.Join(", ", waiting)}..." : "Waiting for services...";
+                        UpdateStatus($"{onlinePart}{waitingPart}");
                     });
                 }
 
@@ -375,13 +385,9 @@ namespace DshAntigravityLauncher
                     WebDsh.Reload();
                 }
             }
-            else if (WebProxy.Visibility == Visibility.Visible)
+            else if (WebXProxy.Visibility == Visibility.Visible)
             {
-                WebProxy.Reload();
-            }
-            else if (WebCodexProxy.Visibility == Visibility.Visible)
-            {
-                WebCodexProxy.Reload();
+                WebXProxy.Reload();
             }
         }
 
@@ -426,12 +432,10 @@ namespace DshAntigravityLauncher
         private void BtnTabDsh_Click(object sender, RoutedEventArgs e)
         {
             BtnTabDsh.Style = (Style)FindResource("TabButtonActiveStyle");
-            BtnTabProxy.Style = (Style)FindResource("TabButtonStyle");
-            BtnTabCodexProxy.Style = (Style)FindResource("TabButtonStyle");
+            BtnTabXProxy.Style = (Style)FindResource("TabButtonStyle");
 
             WebDsh.Visibility = Visibility.Visible;
-            WebProxy.Visibility = Visibility.Collapsed;
-            WebCodexProxy.Visibility = Visibility.Collapsed;
+            WebXProxy.Visibility = Visibility.Collapsed;
 
             if (!_dshLoaded)
             {
@@ -441,39 +445,19 @@ namespace DshAntigravityLauncher
             }
         }
 
-        private void BtnTabProxy_Click(object sender, RoutedEventArgs e)
+        private void BtnTabXProxy_Click(object sender, RoutedEventArgs e)
         {
-            BtnTabProxy.Style = (Style)FindResource("TabButtonActiveStyle");
+            BtnTabXProxy.Style = (Style)FindResource("TabButtonActiveStyle");
             BtnTabDsh.Style = (Style)FindResource("TabButtonStyle");
-            BtnTabCodexProxy.Style = (Style)FindResource("TabButtonStyle");
 
-            WebProxy.Visibility = Visibility.Visible;
+            WebXProxy.Visibility = Visibility.Visible;
             WebDsh.Visibility = Visibility.Collapsed;
-            WebCodexProxy.Visibility = Visibility.Collapsed;
 
-            // Lazy load Antigravity Proxy tab only when opened
-            if (!_proxyLoaded)
+            // Lazy load X-Proxy tab only when opened
+            if (!_xProxyLoaded)
             {
-                WebProxy.Source = new Uri("http://localhost:8080/");
-                _proxyLoaded = true;
-            }
-        }
-
-        private void BtnTabCodexProxy_Click(object sender, RoutedEventArgs e)
-        {
-            BtnTabCodexProxy.Style = (Style)FindResource("TabButtonActiveStyle");
-            BtnTabDsh.Style = (Style)FindResource("TabButtonStyle");
-            BtnTabProxy.Style = (Style)FindResource("TabButtonStyle");
-
-            WebCodexProxy.Visibility = Visibility.Visible;
-            WebDsh.Visibility = Visibility.Collapsed;
-            WebProxy.Visibility = Visibility.Collapsed;
-
-            // Lazy load Codex Proxy tab only when opened
-            if (!_codexProxyLoaded)
-            {
-                WebCodexProxy.Source = new Uri("http://localhost:8081/");
-                _codexProxyLoaded = true;
+                WebXProxy.Source = new Uri("http://localhost:3081/");
+                _xProxyLoaded = true;
             }
         }
 
@@ -511,74 +495,19 @@ namespace DshAntigravityLauncher
 
         private async Task StopServicesSequenceAsync()
         {
-            UpdateStatus("Stopping services (DSH, Antigravity Proxy & Codex Proxy)...");
+            UpdateStatus("Stopping services (DSH & X-Proxy)...");
 
-            // 1. Kill DSH / background service process trees
+            // Kill DSH / background service process trees (covers `npx uwu-x-proxy`)
             KillExistingServicesProcess();
+            await Task.CompletedTask;
 
-            // 2. Execute antigravity-claude-proxy stop
-            await RunProxyStopAsync();
-
-            UpdateStatus("🛑 Services stopped (DSH & proxy processes terminated).", isError: true);
-        }
-
-        private Task<bool> RunProxyStopAsync()
-        {
-            return Task.Run(() =>
-            {
-                try
-                {
-                    AppLogger.Log("[STOP] Executing: cmd.exe /c antigravity-claude-proxy stop");
-                    var psi = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = "/c antigravity-claude-proxy stop",
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        WindowStyle = ProcessWindowStyle.Hidden
-                    };
-
-                    using (var proc = new Process { StartInfo = psi })
-                    {
-                        proc.OutputDataReceived += (s, e) =>
-                        {
-                            if (!string.IsNullOrEmpty(e.Data))
-                            {
-                                AppLogger.Log($"[PROXY STOP STDOUT] {e.Data}");
-                            }
-                        };
-                        proc.ErrorDataReceived += (s, e) =>
-                        {
-                            if (!string.IsNullOrEmpty(e.Data))
-                            {
-                                AppLogger.Log($"[PROXY STOP STDERR] {e.Data}");
-                            }
-                        };
-
-                        proc.Start();
-                        proc.BeginOutputReadLine();
-                        proc.BeginErrorReadLine();
-                        proc.WaitForExit(4000);
-
-                        AppLogger.Log($"[STOP] antigravity-claude-proxy stop completed with exit code: {proc.ExitCode}");
-                        return proc.ExitCode == 0;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Log($"[STOP] antigravity-claude-proxy stop error: {ex.Message}");
-                }
-                return false;
-            });
+            UpdateStatus("🛑 Services stopped (DSH & X-Proxy processes terminated).", isError: true);
         }
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             AppLogger.Log("[APPLICATION] MainWindow is closing. Terminating services...");
             KillExistingServicesProcess();
-            _ = RunProxyStopAsync();
             AppLogger.Log("[APPLICATION] Session terminated.");
         }
 
