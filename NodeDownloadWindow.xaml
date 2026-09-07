@@ -1,7 +1,7 @@
 <Window x:Class="DshAntigravityLauncher.NodeDownloadWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Thông báo - Chưa cài đặt Node.js" Icon="icon.png" Height="340" Width="540"
+        Title="Thông báo - Chưa cài đặt Node.js" Icon="deepseek.ico" Height="340" Width="540"
         Background="#0F172A" WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize" Topmost="True">
     <Grid Margin="24">

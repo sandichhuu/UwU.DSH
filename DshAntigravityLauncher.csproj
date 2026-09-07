@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <ApplicationIcon>deepseek.ico</ApplicationIcon>
     
     <!-- Ultra-lightweight publish configuration -->
     <PublishSingleFile>true</PublishSingleFile>
@@ -15,8 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="icon.png" />
-    <Resource Include="icon.ico" />
+    <Resource Include="deepseek.ico" />
   </ItemGroup>
 
   <ItemGroup>
