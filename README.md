@@ -59,16 +59,16 @@ For dev run without building: `dotnet run --project DshAntigravityLauncher.cspro
 ## Usage Guide
 
 ### Connect Google Account
-<img width="1919" height="1019" alt="image" src="https://github.com/user-attachments/assets/93b8e4b8-ae1e-4a06-a1e7-602acd7dc994" />
+<img width="1919" height="1031" alt="image" src="https://github.com/user-attachments/assets/51760d90-5708-4773-9489-8b64da4ddcda" />
 
-### Fetch model list  
-<img width="1919" height="1022" alt="image" src="https://github.com/user-attachments/assets/0f2bb7b3-276b-4b27-a2b5-ae1b1e8e6d0c" />  
+### Routes Models  
+<img width="1919" height="1033" alt="image" src="https://github.com/user-attachments/assets/ce702fe7-b14f-4b7b-bb0f-30c78c01334c" />
 
-### Turn to Anthropic protocol  
-<img width="1919" height="1023" alt="image" src="https://github.com/user-attachments/assets/1126fca8-ba14-45c5-a2e0-563d547e234c" />  
+### Integrate DSH
+<img width="1919" height="1032" alt="image" src="https://github.com/user-attachments/assets/bdc8e985-471e-45e4-9a36-faea9ca4eff8" />
 
-### Select model and enjoy  
-<img width="1919" height="1021" alt="image" src="https://github.com/user-attachments/assets/afd41adf-c132-47fc-a833-3d95c3e9b94f" />
+### Enjoy
+<img width="1919" height="1033" alt="image" src="https://github.com/user-attachments/assets/edfc6f4e-a598-4b5e-8431-e971f9b5cd93" />
 
 ---
 
